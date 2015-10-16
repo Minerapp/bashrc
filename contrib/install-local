@@ -8,8 +8,8 @@ fi
 if command -v git >/dev/null ; then
   printf "===> Cloning git repository to ${HOME}/.bash ...\n"
   builtin cd "${HOME}" && \
-    ( git clone --depth 1 git://github.com/fnichol/bashrc.git .bash || \
-    git clone http://github.com/fnichol/bashrc.git .bash )
+    ( git clone --depth 1 git://github.com/Minerapp/bashrc.git .bash || \
+    git clone http://github.com/Minerapp/bashrc.git .bash )
 elif command -v curl >/dev/null && command -v python >/dev/null; then
   tarball_install=1
   case "$(uname -s)" in
@@ -21,11 +21,11 @@ elif command -v curl >/dev/null && command -v python >/dev/null; then
 
   printf "===> Git not found, so downloading tarball to ${HOME}/.bash ...\n"
   mkdir -p "${HOME}/.bash"
-  curl -LsSf http://github.com/fnichol/bashrc/tarball/master | \
+  curl -LsSf http://github.com/Minerapp/bashrc/tarball/master | \
     ${tar_cmd} xvz -C${HOME}/.bash --strip 1
   printf "===> Determining version date from github api ...\n"
   tip_date="$(curl -sSL \
-    http://github.com/api/v2/json/commits/show/fnichol/bashrc/HEAD | \
+    http://github.com/api/v2/json/commits/show/Minerapp/bashrc/HEAD | \
     python -c 'import sys; import json; j = json.loads(sys.stdin.read()); print j["commit"]["committed_date"];')"
   if [ "$?" -ne 0 ] ; then tip_date="UNKNOWN" ; fi
   printf "TARBALL $tip_date" > "${HOME}/.bash/tip.date"
