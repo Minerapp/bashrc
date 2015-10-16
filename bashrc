@@ -1,3 +1,4 @@
+[[ -n "${bashrc_prefix}" ]] && export bashrc_prefix
 
 #---------------------------------------------------------------
 # Functions
@@ -6,6 +7,7 @@
 ##
 # Unsets any outstanding environment variables and unsets itself.
 #
+
 cleanup() {
   unset PROMPT_COLOR REMOTE_PROMPT_COLOR _os _id bashrc_reload_flag
   unset cleanup
@@ -575,7 +577,7 @@ bash_prompt() {
     PROMPT_COLOR="$REMOTE_PROMPT_COLOR"
   fi
   
-  if [ "$($_id -ur)" -eq "0" ] ; then  # am I root?
+  if [ "$EUID" -eq 0 ] ; then  # am I root?
     local user_c="#" ; local tb=$user_c ; local color="red"
   else
     local user_c=">" ; local tb=""      ; local color="$PROMPT_COLOR"
@@ -603,7 +605,7 @@ bash_prompt() {
   esac
 
   local prompt_core=""
-  if [ -n "$SSH_TTY" -o "$($_id -ur)" -eq "0" ] ; then
+  if [ -n "$SSH_TTY" -o "$EUID" -eq 0 ] ; then
     local prompt_core="\u@\h"
   fi
 
