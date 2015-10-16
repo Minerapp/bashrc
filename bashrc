@@ -1619,4 +1619,26 @@ esac
 
 safe_source "${bashrc_prefix:-/etc/bash}/bashrc.local" "${HOME}/.bash_aliases"
 
+# some more ls aliases
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+
+#git aliases
+alias gaa='git add --all'
+alias gcm='git commit -m'
+alias ga='git add'
+alias gs='git status'
+alias gp='git push'
+alias gf='git fetch'
+# Add an "alert" alias for long running commands.  Use like so:
+#   sleep 10; alert
+alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
+ PS1='\n\[\033[1;34m\]\342\226\210\342\226\210 \u:\h @ \w\n\[\033[0;36m\]\342\226\210\342\226\210 \t $ \[\033[0;39m\]'
+# Alias definitions.
+# iYou may want to put all your additions into a separate file like
+# ~/.bash_aliases, instead of adding them here directly.
+# See /usr/share/doc/bash-doc/examples in the bash-doc package.
+
+
 cleanup
