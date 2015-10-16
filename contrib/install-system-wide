@@ -7,7 +7,7 @@ fi
 
 if [[ -d "/etc/bash" ]] ; then
   printf "\n>> /etc/bash must not exist so not installing.\n\n"
-  exit 2
+  exit 0
 fi
 
 if command -v git >/dev/null ; then
