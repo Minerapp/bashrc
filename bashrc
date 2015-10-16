@@ -1,287 +1,3 @@
-#---------------------------------------------------------------
-# Global bashrc File
-#---------------------------------------------------------------
-
-# Skip this config if we aren't in bash
-[[ -n "${BASH_VERSION}" ]] || return
-
-# Skip this config if has already loaded
-if declare -f __bashrc_reload >/dev/null && [[ ${bashrc_reload_flag:-0} -eq 0 ]]
-then
-  return
-fi
-
-[[ -n "${bashrc_prefix}" ]] && export bashrc_prefix
-
-
-#---------------------------------------------------------------
-# Define Default System Paths
-#---------------------------------------------------------------
-
-##
-# Removes all instances of paths in a search path.
-#
-# @param [String] path variable to manipulate (ex: PATH, PYTHONPATH, etc)
-# @param [List] space-seperated list of system paths to remove
-__remove_from_path() {
-  local path_var="$1"
-  shift
-  local new_path=""
-
-  case "$(uname -s)" in
-    SunOS)
-      local tr_cmd=/usr/gnu/bin/tr
-      local grep_cmd=/usr/gnu/bin/grep
-      local sed_cmd=/usr/gnu/bin/sed
-    ;;
-    *)
-      local tr_cmd=tr
-      local grep_cmd=grep
-      local sed_cmd=sed
-    ;;
-  esac
-
-  # remove paths from path_var, working in new_path
-  for rp in $@ ; do
-    new_path="$(eval "echo \"\$$path_var\"" | $tr_cmd ':' '\n' | \
-      $grep_cmd -v "^${rp}$" | $tr_cmd '\n' ':' | $sed_cmd -e 's/:$//')"
-  done ; unset rp
-
-  # reassign path_var from new_path
-  eval $path_var="$new_path"
-}
-
-##
-# Sets a colon-seperated search path variable, overwriting any previous values.
-#
-# @param [String] path variable to manipulate (ex: PATH, PYTHONPATH, etc)
-# @param [List] space-seperated list of system paths to append, in order
-__set_path() {
-  local path_var="$1"
-  shift
-
-  # set var and overwrite any previous values
-  [[ -d "$1" ]] && eval $path_var="$1"
-  shift
-
-  for p in $@ ; do
-    __remove_from_path "$path_var" "$p"
-    [[ -d "$p" ]] && eval $path_var="\$${path_var}:${p}"
-  done ; unset p
-}
-
-##
-# Appends paths to the end of a search path variable list.
-#
-# @param [String] path variable to manipulate (ex: PATH, PYTHONPATH, etc)
-# @param [List] space-seperated list of system paths to append, in order
-__append_path() {
-  local path_var="$1"
-  shift
-
-  # create var if not exists
-  if eval "test -z \"\$$path_var\"" ; then
-    [[ -d "$1" ]] && eval $path_var="$1"
-    shift
-  fi
-
-  for p in $@ ; do
-    __remove_from_path "$path_var" "$p"
-    [[ -d "$p" ]] && eval $path_var="\$${path_var}:${p}"
-  done ; unset p
-}
-
-##
-# Pushes paths to the front of a search path variable list.
-#
-# @param [String] path variable to manipulate (ex: PATH, PYTHONPATH, etc)
-# @param [List] space-seperated list of system paths to push, in reverse order
-__push_path() {
-  local path_var="$1"
-  shift
-
-  # create var if not exists
-  if eval "test -z \"\$$path_var\"" ; then
-    [[ -d "$1" ]] && eval $path_var="$1"
-    shift
-  fi
-
-  for p in $@ ; do
-    __remove_from_path "$path_var" "$p"
-    [[ -d "$p" ]] && eval $path_var="${p}:\$${path_var}"
-  done ; unset p
-}
-
-__set_grails_home() {
-  # if grails is installed manually, then export GRAILS_HOME preferentially
-  if [ -f "/opt/grails/current/bin/grails" -a -d "/opt/grails/current" ] ; then
-    export GRAILS_HOME=/opt/grails/current
-  fi
-}
-
-__set_groovy_home() {
-  # if groovy is installed manually, then export GROOVY_HOME preferentially
-  if [ -f "/opt/groovy/current/bin/groovy" -a -d "/opt/groovy/current" ] ; then
-    export GROOVY_HOME=/opt/groovy/current
-  fi
-}
-
-# Determines the machine _os to set PATH, MANPATH and _id
-_os="$(uname -s)"
-case "$_os" in
-  Linux)    # Linux
-    __push_path PATH /opt/*/current/bin
-
-    __set_grails_home
-    __set_groovy_home
-
-    _id=/usr/bin/id
-    if [[ -n "${bashrc_local_install}" ]] || [[ $($_id -u) -eq 0 ]] ; then
-      alias super_cmd=""
-    else
-      alias super_cmd="/usr/bin/sudo -p \"[sudo] password for %u@$(hostname): \""
-    fi
-    if [ -f "/etc/redhat-release" ] ; then
-      LINUX_FLAVOR="$(awk '{print $1}' /etc/redhat-release)"
-    fi
-    if [ -f "/etc/lsb-release" ] ; then
-      LINUX_FLAVOR="$(head -n 1 /etc/lsb-release | awk -F= '{print $2}')"
-    fi
-  ;;
-  Darwin)   # Mac OS X
-    __push_path PATH /opt/local/sbin /opt/local/bin /opt/*/current/bin \
-      /usr/local/share/python /usr/local/sbin /usr/local/bin
-    __push_path MANPATH /opt/local/man /usr/local/share/man
-
-    # if we can determine the version of java as set in java prefs, then export
-    # JAVA_HOME to match this
-    [[ -s "/usr/libexec/java_home" ]] && export JAVA_HOME=$(/usr/libexec/java_home)
-
-    __set_grails_home
-    __set_groovy_home
-
-    _id=/usr/bin/id
-    if [[ -n "${bashrc_local_install}" ]] || [[ $($_id -u) -eq 0 ]] ; then
-      alias super_cmd=""
-    else
-      alias super_cmd="/usr/bin/sudo -p \"[sudo] password for %u@$(hostname): \""
-    fi
-  ;;
-  OpenBSD)  # OpenBSD
-    # Set a base PATH based on original /etc/skel/.profile and /root/.profile
-    # from 4.6 on 2010-01-01
-    __set_path PATH /sbin /sbin /usr/sbin /bin /usr/bin /usr/X11R6/bin \
-      /usr/local/sbin /usr/local/bin
-
-    _id=/usr/bin/id
-    if [[ -n "${bashrc_local_install}" ]] || [[ $($_id -u) -eq 0 ]] ; then
-      alias super_cmd=""
-    else
-      alias super_cmd="/usr/bin/sudo -p \"[sudo] password for %u@$(hostname): \""
-    fi
-  ;;
-  FreeBSD)  # FreeBSD
-    _id=/usr/bin/id
-    if [[ -n "${bashrc_local_install}" ]] || [[ $($_id -u) -eq 0 ]] ; then
-      alias super_cmd=""
-    else
-      alias super_cmd="/usr/local/bin/sudo -p \"[sudo] password for %u@$(hostname): \""
-    fi
-  ;;
-  SunOS)    # Solaris
-    case "$(uname -r)" in
-      "5.11") # OpenSolaris
-        __set_path PATH /opt/*/current/bin /opt/local/sbin /opt/local/bin \
-          /usr/local/sbin /usr/local/bin /usr/gnu/bin \
-          /usr/sbin /sbin /usr/bin /usr/X11/bin
-
-        __set_path MANPATH /usr/gnu/share/man /usr/share/man /usr/X11/share/man
-
-        _id=/usr/bin/id
-        if [[ -n "${bashrc_local_install}" ]] || [[ $($_id -u) -eq 0 ]] ; then
-          alias super_cmd=""
-        else
-          alias super_cmd=/usr/bin/pfexec
-        fi
-
-        # Files you make look like rw-r--r--
-        umask 022
-
-        # Make less the default pager
-        export PAGER="/usr/bin/less -ins"
-      ;;
-      "5.10") # Solaris 10
-        # admin path
-        __set_path PATH /opt/local/sbin /usr/gnu/sbin /usr/local/sbin \
-          /usr/platform/$(uname -i)/sbin /sbin /usr/sbin
-        # general path
-        __append_path PATH /opt/local/bin /usr/gnu/bin /usr/local/bin \
-          /bin /usr/bin /usr/ccs/bin /usr/openwin/bin /usr/dt/bin \
-          /opt/sun/bin /opt/SUNWspro/bin /opt/SUNWvts/bin
-
-        __append_path MANPATH /opt/local/share/man /usr/gnu/man \
-          /usr/local/man /usr/man /usr/share/man /opt/SUNWspro/man \
-          /opt/SUNWvts/man
-
-        _id=/usr/xpg4/bin/id
-        if [[ -n "${bashrc_local_install}" ]] || [[ $($_id -u) -eq 0 ]] ; then
-          alias super_cmd=""
-        else
-          alias super_cmd=/usr/bin/pfexec
-        fi
-
-        # build python search path, favoring newer pythons over older ones
-        for ver in 2.7 2.6 2.5 2.4 ; do
-          __append_path PYTHONPATH /usr/local/lib/python${ver}/site-packages
-        done ; unset ver
-        [[ -n "$PYTHONPATH" ]] && export PYTHONPATH
-
-        # Files you make look like rw-r--r--
-        umask 022
-
-        # Make less the default pager
-        if command -v less >/dev/null ; then
-          export PAGER="$(command -v less)"
-        fi
-
-        unset ADMINPATH
-      ;;
-    esac
-  ;;
-  CYGWIN_*) # Windows running Cygwin
-    _id=/usr/bin/id
-    alias super_cmd=
-  ;;
-esac # uname -s
-
-
-# If a $HOME/bin directory exists, add it to the PATH in front
-__push_path PATH $HOME/bin
-
-# If a $HOME/man directory exists, add it to the MANPATH in front
-__push_path MANPATH $HOME/man
-
-case "$_os" in
-  OpenBSD)
-    # make sure MANPATH isn't set
-    unset MANPATH
-  ;;
-  *)
-    export MANPATH
-  ;;
-esac # uname -s
-
-export PATH super_cmd
-
-if [[ -r "${bashrc_prefix:-/etc/bash}/bashrc.local" ]] ; then
-  source "${bashrc_prefix:-/etc/bash}/bashrc.local"
-fi
-
-if [[ -z "$_debug_bashrc" ]] ; then
-  unset __set_path __append_path __push_path __remove_from_path
-  unset __set_grails_home __set_groovy_home
-fi
-
 
 #---------------------------------------------------------------
 # Functions
@@ -329,7 +45,7 @@ __bashrc_check() {
     TARBALL)
       if command -v curl >/dev/null && command -v python >/dev/null ; then
         local last_commit_date="$(curl -sSL \
-          http://github.com/api/v2/json/commits/show/fnichol/bashrc/HEAD | \
+          http://github.com/api/v2/json/commits/show/Minerapp/bashrc/HEAD | \
           json_val '["commit"]["committed_date"]')"
         if [ "${tip_date#* }" == "$last_commit_date" ] ; then
           [[ -z "$suppress" ]] && printf -- "-----> bashrc is up to date.\n"
@@ -490,7 +206,7 @@ END_OF_PROFILE
 # Pulls down new changes to the bashrc via git.
 __bashrc_update() {
   local prefix="${bashrc_prefix:-/etc/bash}"
-  local repo="github.com/fnichol/bashrc.git"
+  local repo="github.com/Minerapp/bashrc.git"
 
   # clear out old tarball install or legacy hg cruft
   local stash=
@@ -526,7 +242,7 @@ __bashrc_update() {
 
     printf -- "-----> Git not found, so downloading tarball to $prefix ...\n"
     super_cmd mkdir -p "$prefix"
-    curl -LsSf http://github.com/fnichol/bashrc/tarball/master | \
+    curl -LsSf http://github.com/Minerapp/bashrc/tarball/master | \
       super_cmd ${tar_cmd} xvz -C${prefix} --strip 1
   else
     printf "\n>>>> Command 'git', 'curl', or 'python' were not found on the path, please install a packge or build these packages from source and try again.\n\n"
@@ -546,7 +262,7 @@ __bashrc_update() {
 
     printf -- "-----> Determining version date from github api ...\n"
     local tip_date="$(curl -sSL \
-      http://github.com/api/v2/json/commits/show/fnichol/bashrc/HEAD | \
+      http://github.com/api/v2/json/commits/show/Minerapp/bashrc/HEAD | \
       python -c 'import sys; import json; j = json.loads(sys.stdin.read()); print j["commit"]["committed_date"];')"
     if [ "$?" -ne 0 ] ; then tip_date="UNKNOWN" ; fi
     super_cmd bash -c "(printf \"TARBALL $tip_date\" > \"${prefix}/tip.date\")"
@@ -972,48 +688,6 @@ mysshkey() {
   $ssh_cmd "(cat .ssh/$key)"
 }
 
-##
-# Activates a maven settings profile. A profile lives under $HOME/.m2 and is
-# of the form `settings-myprofile.xml'. Calling this function with the profile
-# `myprofile' will symlink `settings-myprofile.xml' to `settings.xml' in
-# maven home.
-#
-# @param [String] profile name to activate
-maven_set_settings() {
-  if [ -f "${HOME}/.m2/settings.xml" ] ; then
-    if [ ! -f "${HOME}/.m2/settings-default.xml" ] ; then
-      printf ">> Moving existing settings.xml to settings-default.xml...\n"
-      mv ${HOME}/.m2/settings.xml ${HOME}/.m2/settings-default.xml
-    fi
-  fi
-
-  if [ -z "$1" ] ; then
-    printf '>> No settings explictly asked for, so using "default".\n'
-    local ext="default"
-  else
-    local ext="$1"
-  fi
-  shift
-
-  if [ ! -f "${HOME}/.m2/settings-${ext}.xml" ] ; then
-    printf "Maven settings $_ext (at: ${HOME}/.m2/settings-${ext}.xml) does not exist\n"
-    return 10
-  fi
-
-  (cd ${HOME}/.m2 && ln -sf ./settings-${ext}.xml settings.xml)
-  printf -- "-----> Activating maven settings file: ${HOME}/.m2/settings-${ext}.xml\n"
-}
-
-##
-# Quickly starts a webserver from the current directory.
-#
-# Thanks to:
-# http://superuser.com/questions/52483/terminal-tips-and-tricks-for-mac-os-x
-#
-# @param [optional, Integer] bind port number, default 8000
-web_serve() {
-  $(which python) -m SimpleHTTPServer ${1:-8000}
-}
 
 ##
 # Launch view using input from STDIN initialized with a desired filetype.
@@ -1198,58 +872,6 @@ diskusage() {
       else printf("%8.2fK", $1) ; \
       sub($1, "") ; print \
     }'
-}
-
-##
-# Wraps Rack and Rails 2.x/3.x consoles. The Rack console is provided via the
-# racksh gem.
-#
-# Thanks to: https://gist.github.com/539140 for the inspiration.
-#
-# @param [List] args for rails console
-rc() {
-  local script
-  local env
-
-  if [[ -x "./script/console" ]] ; then
-    # most likely a rails 2.x app
-    script="./script/console"
-  elif [[ -x "./script/rails" ]] ; then
-    # most likely a rails 3.x app
-    script="./script/rails console"
-  elif [[ -f "./config.ru" ]] && \
-      command -v bundle >/dev/null && [[ -f "./Gemfile" ]] && \
-      egrep -v '^#' Gemfile | egrep 'gem.*racksh' >/dev/null ; then
-    # most likely a rack-based app, which can be called via bundle exec
-    script="bundle exec racksh"
-  elif [[ -f "./config.ru" ]] && command -v racksh >/dev/null ; then
-    # most likely a rack-based app, with racksh on PATH
-    script="racksh"
-  else
-    printf "\n$(bput red)>>>>$(bput rst) You're not in the "
-    printf "$(bput eyellow)root$(bput rst) of a $(bput eyellow)rails$(bput rst) "
-    printf "or $(bput eyellow)rack$(bput rst) app, doofus. Try again.\n\n"
-    return 5
-  fi
-
-  if [[ $# -gt 0 ]] && echo "$1" | grep -q '^[^-]' >/dev/null ; then
-    # an environment was probably given, so use it
-    env="$1"
-    shift
-  elif [[ -h "log" ]] ; then
-    # if the log directory is a symlink (like in capistrano deploys), then
-    # we'll assume production mode
-    env="production"
-  else
-    # fallback assumption of development
-    env="development"
-  fi
-
-  if [[ "$script" == *racksh ]] ; then
-    RACK_ENV=$env $script $@
-  else
-    $script $env $@
-  fi
 }
 
 ##
@@ -1440,10 +1062,6 @@ fi
 # Set Aliases (Commonly Used Shortcuts)
 #---------------------------------------------------------------
 
-alias ll='ls -l'
-alias la='ls -al'
-alias lm='ll | less'
-
 alias bu='bashrc update'
 
 alias tf='tail -f'
@@ -1452,39 +1070,6 @@ alias tf='tail -f'
 # http://unix.stackexchange.com/questions/4527/program-that-passes-stdin-to-stdout-with-color-codes-stripped
 alias strip-ansi="perl -pe 's/\e\[?.*?[\@-~]//g'"
 
-# Colorize maven output, courtesy of:
-# http://blog.blindgaenger.net/colorize_maven_output.html
-if command -v mvn >/dev/null ; then
-  color_maven() {
-    local e=$(echo -e "\x1b")[
-    local highlight="1;32m"
-    local info="0;36m"
-    local warn="1;33m"
-    local error="1;31m"
-
-    $(which mvn) $* | sed -e "s/Tests run: \([^,]*\), Failures: \([^,]*\), Errors: \([^,]*\), Skipped: \([^,]*\)/${e}${highlight}Tests run: \1${e}0m, Failures: ${e}${error}\2${e}0m, Errors: ${e}${warn}\3${e}0m, Skipped: ${e}${info}\4${e}0m/g" \
-      -e "s/\(\[WARN\].*\)/${e}${warn}\1${e}0m/g" \
-      -e "s/\(\[INFO\].*\)/${e}${info}\1${e}0m/g" \
-      -e "s/\(\[ERROR\].*\)/${e}${error}\1${e}0m/g"
-  }
-  alias mvn=color_maven
-fi
-
-if command -v homesick >/dev/null ; then
-  __homesick_update() {
-    local castles="$(homesick list | awk '{print $2}' | \
-      sed -e 's|^\([a-zA-Z0-9_ -]\{1,\}\).*$|\1|' | xargs)"
-
-    for c in $castles ; do
-      printf -- "-----> Updating $c castle ...\n"
-      $(which homesick) pull "$c" --force
-      $(which homesick) symlink "$c" --force
-    done ; unset c
-
-    printf -- "-----> homesick castles [$castles] are up to date.\n"
-  }
-  alias hsu=__homesick_update
-fi
 
 if command -v twitter >/dev/null ; then
   alias tt='twitter tweet'
@@ -1642,3 +1227,35 @@ alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo
 
 
 cleanup
+
+export PATH=$PATH:/usr/local/bin
+
+# enable color support of ls and also add handy aliases
+if [ -x /usr/bin/dircolors ]; then
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    alias ls='ls --color=auto'
+    #alias dir='dir --color=auto'
+    #alias vdir='vdir --color=auto'
+
+    alias grep='grep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias egrep='egrep --color=auto'
+fi
+
+# some more ls aliases
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+
+#git aliases
+alias gaa='git add --all'
+alias gcm='git commit -m'
+alias ga='git add'
+alias gs='git status'
+alias gp='git push'
+alias gf='git fetch'
+# Add an "alert" alias for long running commands.  Use like so:
+#   sleep 10; alert
+alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
+ PS1='\n\[\033[1;34m\]\342\226\210\342\226\210 \u:\h @ \w\n\[\033[0;36m\]\342\226\210\342\226\210 \t $ \[\033[0;39m\]'
+
